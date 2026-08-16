@@ -1,90 +1,96 @@
 # Flight Delay Prediction
 
-An exploratory machine-learning project that predicts whether a US domestic
-flight will depart at least 15 minutes late. The project uses 50,205 flights
-from January 2019 and compares k-nearest neighbours, logistic regression, and
-random forest classifiers in Orange Data Mining.
+Leakage-safe binary classification of US domestic departure delays using **50,205 flight records** from January 2019. The project asks whether a flight can be identified as delayed by at least 15 minutes using information plausibly available before departure.
 
-This repository is a reorganized version of a university team project. It is
-preserved as a portfolio case study and documents the validation limitations
-that must be addressed before the model is used in production.
+![Target distribution](results/figures/target_distribution.png)
 
-## Project highlights
+## Analytical question
 
-- Explored operational, carrier, airport, and weather factors associated with
-  departure delays.
-- Built and compared three binary classifiers against a constant baseline.
-- Used a stratified 70/30 train/test split and cross-validation in Orange.
-- Selected a 40-tree random forest in the original analysis.
-- Considered false-positive and false-negative costs in the model-selection
-  discussion.
+Can schedule, aircraft rotation, carrier, and airport context distinguish flights likely to depart at least 15 minutes late?
 
-The original report records a test AUC of **0.716** and accuracy of **0.835**
-for the random forest. These figures are historical results, not validated
-production estimates: the original target-encoding procedure leaks label
-information into evaluation data. See
-[Methodology and limitations](docs/methodology-and-limitations.md).
+The target is `DEP_DEL15`: `1` for a departure delay of 15 minutes or more and `0` otherwise. Only 17.3% of records are delayed, so accuracy alone is misleading: an always-on-time classifier is 82.7% accurate while detecting no delayed flights. Model comparison therefore prioritises ROC-AUC and also reports average precision, delayed-class precision, recall, and F1.
+
+## Dataset
+
+The included dataset contains 50,205 rows and 24 columns covering 17 carriers and 84 departure airports. Available fields describe schedules, aircraft rotations, capacity, carrier/airport activity, geography, and realized daily weather.
+
+The data has no calendar date beyond day of week. It therefore supports a reproducible stratified holdout, but not the stronger month-forward or time-forward validation required for deployment.
+
+## Leakage-safe methodology
+
+1. Reserve a stratified 20% final test set (10,041 flights) with random seed 42.
+2. Compare a prior-probability baseline, logistic regression, 21-neighbour k-NN, and random forest using five-fold stratified cross-validation on the remaining 40,164 rows.
+3. Put imputation, scaling, rare-category handling, and one-hot encoding inside an sklearn `Pipeline` and `ColumnTransformer`, so every transformation is learned from the relevant training fold only.
+4. Select the model with the best mean training cross-validation ROC-AUC, refit its complete pipeline on all training rows, and evaluate it once on the holdout.
+
+Realized weather summaries (`PRCP`, `SNOW`, `SNWD`, `TMAX`, `AWND`) and current-month flight aggregates are excluded from modelling because their availability before the intended prediction time cannot be established. They remain in the raw data for transparent descriptive review.
+
+The original coursework workflow separately target-encoded complete training and test files. Test labels therefore influenced test features, while validation-fold labels influenced cross-validation features. This repository was subsequently refactored; none of the historical scores are retained as valid results. See [methodology and limitations](docs/methodology-and-limitations.md).
+
+## Results
+
+Random forest achieved the strongest mean cross-validation ROC-AUC and was selected before the holdout was evaluated.
+
+| Model | CV ROC-AUC | CV average precision | CV precision | CV recall | CV F1 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Prior baseline | 0.500 | 0.173 | 0.000 | 0.000 | 0.000 |
+| Logistic regression | 0.653 | 0.272 | 0.248 | 0.618 | 0.353 |
+| k-nearest neighbours | 0.636 | 0.263 | 0.365 | 0.029 | 0.054 |
+| **Random forest** | **0.678** | **0.304** | 0.289 | 0.503 | **0.367** |
+
+Final random-forest results on the untouched test set:
+
+| ROC-AUC | Average precision | Accuracy | Precision | Recall | F1 |
+| ---: | ---: | ---: | ---: | ---: | ---: |
+| **0.684** | **0.314** | 0.699 | 0.292 | 0.517 | 0.373 |
+
+At the default 0.5 threshold, the model identified 900 of 1,741 delayed flights and produced 2,181 false alerts. Class-balanced training improves delayed-flight recall at the cost of lower accuracy and precision; the threshold should be chosen from an explicit operational cost model, not assumed to be optimal.
+
+![Model comparison](results/figures/model_comparison.png)
+
+## Interpretable findings
+
+Holdout permutation importance identifies departure time block as the strongest predictive feature, followed by previous airport and aircraft segment number. Descriptively, delay rates rise from 7.1% in early morning to 23.4% in evening flights, and generally increase across later aircraft segments. These are predictive associations, not evidence that changing a feature would cause delays to fall.
+
+![Delay patterns](results/figures/delay_patterns.png)
+
+Additional evaluation figures: [confusion matrix](results/figures/confusion_matrix.png), [ROC curve](results/figures/roc_curve.png), and [feature importance](results/figures/feature_importance.png).
 
 ## Repository structure
 
 ```text
 .
-├── docs/
-│   ├── flight-delay-prediction-report.pdf
-│   └── methodology-and-limitations.md
-└── workflows/
-    ├── evaluation/
-    │   ├── Evaluation Workflow.ows
-    │   ├── training for team9.csv
-    │   ├── training_data_coded.csv
-    │   └── testing_data_coded.csv
-    └── inference/
-        ├── Final Model Workflow.ows
-        └── final_model_rf.pkcls
+├── data/raw/                         # Included source dataset
+├── docs/                             # Original report and methodology audit
+├── results/                          # Recomputed metrics and figures
+├── src/flight_delay/modeling.py      # Preprocessing, training, evaluation, plots
+├── tests/test_modeling.py            # Data-contract and pipeline tests
+├── requirements.txt
+└── run_analysis.py                   # Reproduction entry point
 ```
 
-## Dataset
+## Reproduce
 
-The raw dataset contains 50,205 flight records and 24 columns. The target,
-`DEP_DEL15`, equals 1 when departure was delayed by at least 15 minutes and 0
-otherwise. Delayed flights account for approximately 17.34% of the data.
+Python 3.11 or newer is recommended.
 
-The processed training and testing files contain 35,144 and 15,061 rows,
-respectively. They are included to reproduce the historical Orange workflow,
-not as examples of a leakage-safe preprocessing pipeline.
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
+python run_analysis.py
+```
 
-## Running the historical workflows
+The run recreates all CSV/JSON metrics and PNG figures in `results/`. It also creates an ignored `results/model_pipeline.joblib` containing preprocessing and the selected classifier together.
 
-1. Install [Orange Data Mining](https://orangedatamining.com/).
-2. Open `workflows/evaluation/Evaluation Workflow.ows` to inspect model
-   comparison and evaluation.
-3. If Orange cannot resolve a saved input automatically, select the CSV stored
-   in the same directory as the workflow.
-4. Open `workflows/inference/Final Model Workflow.ows` to inspect the saved-model
-   prediction flow.
+## Limitations and next steps
 
-Orange workflows store application state, including paths from the machines on
-which they were created. The relevant data and model files remain beside their
-workflows to make relinking straightforward.
+- One month of data cannot demonstrate seasonal or future-period generalisation.
+- Missing flight dates prevent grouped or chronological evaluation and make duplicate-flight assessment uncertain.
+- Daily weather observations are not valid forecast inputs; a future version should join timestamped weather forecasts.
+- The dataset does not identify scheduled departure timestamps, destination airports, inbound delays, cancellations, or operational interventions.
+- Hyperparameters and the 0.5 decision threshold are intentionally simple. Future tuning must remain inside training-only nested validation.
+- Reported importance is model-specific and correlated features can share or mask permutation importance.
 
-> [!CAUTION]
-> The `.pkcls` model is a Python pickle. Only load it if you trust this
-> repository; unpickling an untrusted file can execute arbitrary code.
-
-## Recommended next iteration
-
-- Put target encoding inside each cross-validation fold and learn all mappings
-  from training data only.
-- Apply the training mappings to the test set and use a documented fallback for
-  unseen categories.
-- Package preprocessing and prediction as one reproducible pipeline.
-- Report delayed-class precision, recall, F1, PR-AUC, calibration, and
-  threshold-specific confusion matrices.
-- Pin the Orange/Python environment and record random seeds.
-- Validate on additional months to measure seasonality and temporal drift.
-
-## Contributors
-
-Original university project by Songlin Yang, Qianting Yang, Shijia Rong, and
-Xinyi Ji (2021).
+Original university team project by Songlin Yang, Qianting Yang, Shijia Rong, and Xinyi Ji (2021); methodology and implementation subsequently refactored for reproducibility.
 

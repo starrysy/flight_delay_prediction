@@ -1,0 +1,48 @@
+{
+  "random_state": 42,
+  "row_count": 50205,
+  "training_rows": 40164,
+  "test_rows": 10041,
+  "positive_rate": 0.17342894134050393,
+  "selected_model": "Random Forest",
+  "selection_metric": "mean five-fold training ROC-AUC",
+  "test_metrics": {
+    "roc_auc": 0.6843240624762116,
+    "average_precision": 0.31370109160116916,
+    "accuracy": 0.6990339607608804,
+    "precision": 0.2921129503407984,
+    "recall": 0.5169442848937392,
+    "f1": 0.3732890916632103,
+    "true_negative": 6119,
+    "false_positive": 2181,
+    "false_negative": 841,
+    "true_positive": 900
+  },
+  "model_features": [
+    "DEP_BLOCK",
+    "CARRIER_NAME",
+    "DEPARTING_AIRPORT",
+    "PREVIOUS_AIRPORT",
+    "DAY_OF_WEEK",
+    "DISTANCE_GROUP",
+    "SEGMENT_NUMBER",
+    "CONCURRENT_FLIGHTS",
+    "NUMBER_OF_SEATS",
+    "AVG_MONTHLY_PASS_AIRPORT",
+    "AVG_MONTHLY_PASS_AIRLINE",
+    "FLT_ATTENDANTS_PER_PASS",
+    "GROUND_SERV_PER_PASS",
+    "PLANE_AGE",
+    "LATITUDE",
+    "LONGITUDE"
+  ],
+  "excluded_features": {
+    "AIRLINE_FLIGHTS_MONTH": "current-month aggregate unavailable at prediction time",
+    "AIRLINE_AIRPORT_FLIGHTS_MONTH": "current-month aggregate unavailable at prediction time",
+    "PRCP": "realized daily weather summary",
+    "SNOW": "realized daily weather summary",
+    "SNWD": "realized daily weather summary",
+    "TMAX": "realized daily maximum unavailable before departure",
+    "AWND": "realized daily weather summary"
+  }
+}

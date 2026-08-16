@@ -11,8 +11,10 @@ __pycache__/
 
 # Local outputs and temporary files
 tmp/
-output/
 *.log
+
+# Generated model artifact (recreate with run_analysis.py)
+results/model_pipeline.joblib
 
 # Orange autosave/backup files
 *.ows~

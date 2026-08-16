@@ -1,0 +1,19 @@
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Local outputs and temporary files
+tmp/
+output/
+*.log
+
+# Orange autosave/backup files
+*.ows~
+*.bak
